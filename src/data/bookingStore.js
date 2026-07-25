@@ -1,7 +1,7 @@
 // Centralized System Activity & Real-Time Telemetry Store for AUTO ELITE
-// Includes Persistent Global Cloud DB Sync for Vercel Cross-Device Real-Time Persistence via JSONBlob API
+// Includes Persistent Global Cloud DB Sync via Vercel Serverless Proxy (/api/bookings) & JSONBlob Fallback
 
-const CLOUD_DB_URL = 'https://jsonblob.com/api/jsonBlob/019f98ae-6aec-7633-98f4-31a67e75c5db';
+const DIRECT_CLOUD_URL = 'https://jsonblob.com/api/jsonBlob/019f98ae-6aec-7633-98f4-31a67e75c5db';
 
 const INITIAL_BOOKINGS = [
   { id: 'AE-9481', customer: 'Dinesh Perera', phone: '+94 77 123 4567', vehicle: 'Porsche 911 GT3 RS', service: '9H Ceramic & Tune', date: '2026-07-28 10:00 AM', mechanic: 'Julian Sterling', status: 'In Progress', revenue: 'LKR 245,000', rawRevenue: 245000, notes: 'Please inspect front carbon splitter', timeAgo: '10 Mins Ago' },
@@ -28,47 +28,62 @@ export const getStoredNotifications = () => {
 
 // Async Persistent Cloud Sync function for Vercel deployment across all devices worldwide
 export const syncCloudBookings = async () => {
+  let cloudData = null;
+
+  // Try Vercel Serverless Function Proxy first
   try {
-    const res = await fetch(CLOUD_DB_URL, {
+    const res = await fetch('/api/bookings', {
       method: 'GET',
       headers: { 'Accept': 'application/json' },
       cache: 'no-store'
     });
-
     if (res.ok) {
-      const cloudData = await res.json();
-
-      if (cloudData.bookings && Array.isArray(cloudData.bookings) && cloudData.bookings.length > 0) {
-        const localBookings = getStoredBookings();
-        
-        // Merge cloud & local bookings, preserving unique IDs
-        const map = new Map();
-        [...cloudData.bookings, ...localBookings].forEach(item => {
-          if (item && item.id && !map.has(item.id)) {
-            map.set(item.id, item);
-          }
-        });
-
-        const mergedBookings = Array.from(map.values());
-        localStorage.setItem('auto_elite_bookings', JSON.stringify(mergedBookings));
-
-        if (cloudData.notifications && Array.isArray(cloudData.notifications)) {
-          const notifMap = new Map();
-          [...cloudData.notifications, ...getStoredNotifications()].forEach(n => {
-            if (n && n.id && !notifMap.has(n.id)) {
-              notifMap.set(n.id, n);
-            }
-          });
-          localStorage.setItem('auto_elite_notifications', JSON.stringify(Array.from(notifMap.values())));
-        }
-
-        window.dispatchEvent(new Event('auto_elite_system_update'));
-        return mergedBookings;
-      }
+      cloudData = await res.json();
     }
-  } catch (e) {
-    // Fallback to local storage if offline
+  } catch (e) {}
+
+  // Fallback to direct cloud endpoint if serverless proxy fails
+  if (!cloudData || !cloudData.bookings) {
+    try {
+      const res = await fetch(DIRECT_CLOUD_URL, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+        cache: 'no-store'
+      });
+      if (res.ok) {
+        cloudData = await res.json();
+      }
+    } catch (e) {}
   }
+
+  if (cloudData && cloudData.bookings && Array.isArray(cloudData.bookings) && cloudData.bookings.length > 0) {
+    const localBookings = getStoredBookings();
+    
+    // Merge cloud & local bookings, preserving unique IDs
+    const map = new Map();
+    [...cloudData.bookings, ...localBookings].forEach(item => {
+      if (item && item.id && !map.has(item.id)) {
+        map.set(item.id, item);
+      }
+    });
+
+    const mergedBookings = Array.from(map.values());
+    localStorage.setItem('auto_elite_bookings', JSON.stringify(mergedBookings));
+
+    if (cloudData.notifications && Array.isArray(cloudData.notifications)) {
+      const notifMap = new Map();
+      [...cloudData.notifications, ...getStoredNotifications()].forEach(n => {
+        if (n && n.id && !notifMap.has(n.id)) {
+          notifMap.set(n.id, n);
+        }
+      });
+      localStorage.setItem('auto_elite_notifications', JSON.stringify(Array.from(notifMap.values())));
+    }
+
+    window.dispatchEvent(new Event('auto_elite_system_update'));
+    return mergedBookings;
+  }
+
   return getStoredBookings();
 };
 
@@ -109,19 +124,20 @@ export const addSystemBooking = (newBooking) => {
   localStorage.setItem('auto_elite_bookings', JSON.stringify(updatedBookings));
   localStorage.setItem('auto_elite_notifications', JSON.stringify(updatedNotifs));
 
-  // Push to persistent global cloud storage via JSONBlob
+  // Push to Vercel Serverless Function & Cloud Storage
   try {
-    fetch(CLOUD_DB_URL, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify({
-        bookings: updatedBookings,
-        notifications: updatedNotifs
-      })
-    }).catch(() => {});
+    fetch('/api/bookings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ booking: bookingEntry, notification: notificationEntry })
+    }).catch(() => {
+      // Fallback direct fetch
+      fetch(DIRECT_CLOUD_URL, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookings: updatedBookings, notifications: updatedNotifs })
+      }).catch(() => {});
+    });
   } catch (e) {}
 
   // Dispatch custom window event for real-time reactive sync across local components
@@ -134,20 +150,22 @@ export const addSystemBooking = (newBooking) => {
 
 export const updateCloudBookingsList = (updatedBookingsList) => {
   localStorage.setItem('auto_elite_bookings', JSON.stringify(updatedBookingsList));
+  const currentNotifs = getStoredNotifications();
+
   try {
-    const currentNotifs = getStoredNotifications();
-    fetch(CLOUD_DB_URL, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify({
-        bookings: updatedBookingsList,
-        notifications: currentNotifs
-      })
-    }).catch(() => {});
+    fetch('/api/bookings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ updatedBookings: updatedBookingsList })
+    }).catch(() => {
+      fetch(DIRECT_CLOUD_URL, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookings: updatedBookingsList, notifications: currentNotifs })
+      }).catch(() => {});
+    });
   } catch (e) {}
+
   window.dispatchEvent(new Event('auto_elite_system_update'));
 };
 
