@@ -36,8 +36,10 @@ export default async function handler(req, res) {
       if (body?.updatedBookings && Array.isArray(body.updatedBookings)) {
         updatedBookings = body.updatedBookings;
       } else if (body?.booking) {
-        const exists = updatedBookings.some(b => b.id === body.booking.id);
-        if (!exists) {
+        const index = updatedBookings.findIndex(b => b.id === body.booking.id);
+        if (index >= 0) {
+          updatedBookings[index] = { ...updatedBookings[index], ...body.booking };
+        } else {
           updatedBookings = [body.booking, ...updatedBookings];
         }
         if (body.notification) {

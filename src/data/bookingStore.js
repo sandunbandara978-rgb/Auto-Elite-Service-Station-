@@ -59,12 +59,13 @@ export const syncCloudBookings = async () => {
   if (cloudData && cloudData.bookings && Array.isArray(cloudData.bookings) && cloudData.bookings.length > 0) {
     const localBookings = getStoredBookings();
     
-    // Merge cloud & local bookings, preserving unique IDs
+    // Merge local & cloud bookings: Cloud bookings ALWAYS overwrite local bookings so Admin status changes persist!
     const map = new Map();
-    [...cloudData.bookings, ...localBookings].forEach(item => {
-      if (item && item.id && !map.has(item.id)) {
-        map.set(item.id, item);
-      }
+    localBookings.forEach(item => {
+      if (item && item.id) map.set(item.id, item);
+    });
+    cloudData.bookings.forEach(item => {
+      if (item && item.id) map.set(item.id, item);
     });
 
     const mergedBookings = Array.from(map.values());
@@ -72,10 +73,11 @@ export const syncCloudBookings = async () => {
 
     if (cloudData.notifications && Array.isArray(cloudData.notifications)) {
       const notifMap = new Map();
-      [...cloudData.notifications, ...getStoredNotifications()].forEach(n => {
-        if (n && n.id && !notifMap.has(n.id)) {
-          notifMap.set(n.id, n);
-        }
+      getStoredNotifications().forEach(n => {
+        if (n && n.id) notifMap.set(n.id, n);
+      });
+      cloudData.notifications.forEach(n => {
+        if (n && n.id) notifMap.set(n.id, n);
       });
       localStorage.setItem('auto_elite_notifications', JSON.stringify(Array.from(notifMap.values())));
     }
@@ -152,18 +154,28 @@ export const updateCloudBookingsList = (updatedBookingsList) => {
   localStorage.setItem('auto_elite_bookings', JSON.stringify(updatedBookingsList));
   const currentNotifs = getStoredNotifications();
 
+  // Push to Vercel Serverless Function Proxy
   try {
     fetch('/api/bookings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ updatedBookings: updatedBookingsList })
-    }).catch(() => {
-      fetch(DIRECT_CLOUD_URL, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bookings: updatedBookingsList, notifications: currentNotifs })
-      }).catch(() => {});
-    });
+    }).catch(() => {});
+  } catch (e) {}
+
+  // Also push directly to persistent cloud store to guarantee instant lock-in across all devices
+  try {
+    fetch(DIRECT_CLOUD_URL, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({
+        bookings: updatedBookingsList,
+        notifications: currentNotifs
+      })
+    }).catch(() => {});
   } catch (e) {}
 
   window.dispatchEvent(new Event('auto_elite_system_update'));
