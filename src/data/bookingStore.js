@@ -1,7 +1,7 @@
 // Centralized System Activity & Real-Time Telemetry Store for AUTO ELITE
-// Includes Persistent Global Cloud DB Sync for Vercel Cross-Device Real-Time Persistence
+// Includes Persistent Global Cloud DB Sync for Vercel Cross-Device Real-Time Persistence via JSONBlob API
 
-const CLOUD_DB_URL = 'https://api.restful-api.dev/objects/ff8081819f7e10ae019f98944169258b';
+const CLOUD_DB_URL = 'https://jsonblob.com/api/jsonBlob/019f98ae-6aec-7633-98f4-31a67e75c5db';
 
 const INITIAL_BOOKINGS = [
   { id: 'AE-9481', customer: 'Dinesh Perera', phone: '+94 77 123 4567', vehicle: 'Porsche 911 GT3 RS', service: '9H Ceramic & Tune', date: '2026-07-28 10:00 AM', mechanic: 'Julian Sterling', status: 'In Progress', revenue: 'LKR 245,000', rawRevenue: 245000, notes: 'Please inspect front carbon splitter', timeAgo: '10 Mins Ago' },
@@ -29,10 +29,14 @@ export const getStoredNotifications = () => {
 // Async Persistent Cloud Sync function for Vercel deployment across all devices worldwide
 export const syncCloudBookings = async () => {
   try {
-    const res = await fetch(CLOUD_DB_URL, { cache: 'no-store' });
+    const res = await fetch(CLOUD_DB_URL, {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' },
+      cache: 'no-store'
+    });
+
     if (res.ok) {
-      const result = await res.json();
-      const cloudData = result?.data || {};
+      const cloudData = await res.json();
 
       if (cloudData.bookings && Array.isArray(cloudData.bookings) && cloudData.bookings.length > 0) {
         const localBookings = getStoredBookings();
@@ -63,7 +67,7 @@ export const syncCloudBookings = async () => {
       }
     }
   } catch (e) {
-    // Fallback to local storage
+    // Fallback to local storage if offline
   }
   return getStoredBookings();
 };
@@ -105,14 +109,17 @@ export const addSystemBooking = (newBooking) => {
   localStorage.setItem('auto_elite_bookings', JSON.stringify(updatedBookings));
   localStorage.setItem('auto_elite_notifications', JSON.stringify(updatedNotifs));
 
-  // Push to persistent global cloud storage
+  // Push to persistent global cloud storage via JSONBlob
   try {
     fetch(CLOUD_DB_URL, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
       body: JSON.stringify({
-        name: 'AutoEliteGlobalStore',
-        data: { bookings: updatedBookings, notifications: updatedNotifs }
+        bookings: updatedBookings,
+        notifications: updatedNotifs
       })
     }).catch(() => {});
   } catch (e) {}
@@ -131,10 +138,13 @@ export const updateCloudBookingsList = (updatedBookingsList) => {
     const currentNotifs = getStoredNotifications();
     fetch(CLOUD_DB_URL, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
       body: JSON.stringify({
-        name: 'AutoEliteGlobalStore',
-        data: { bookings: updatedBookingsList, notifications: currentNotifs }
+        bookings: updatedBookingsList,
+        notifications: currentNotifs
       })
     }).catch(() => {});
   } catch (e) {}
