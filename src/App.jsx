@@ -1,5 +1,5 @@
 import { Routes, Route, useLocation } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Component } from 'react';
 import { AnimatePresence } from 'framer-motion';
 
 import AutoEliteLoadingScreen from './components/AutoEliteLoadingScreen';
@@ -37,13 +37,71 @@ function ScrollToTop() {
   return null;
 }
 
+// Error boundary prevents blank/black screen crashes on any JS error
+class ErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, info) {
+    console.error('[AUTO ELITE] Render error:', error, info);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{
+          minHeight: '100vh',
+          background: '#0B0F19',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: '#fff',
+          fontFamily: 'sans-serif',
+          gap: '16px',
+          padding: '24px'
+        }}>
+          <div style={{ fontSize: '48px' }}>⚙️</div>
+          <h1 style={{ fontSize: '24px', fontWeight: 700, margin: 0 }}>AUTO ELITE</h1>
+          <p style={{ color: '#94a3b8', margin: 0 }}>A system error occurred. Reloading…</p>
+          <button
+            onClick={() => { localStorage.removeItem('auto_elite_visited'); window.location.href = '/'; }}
+            style={{
+              marginTop: '8px',
+              padding: '10px 28px',
+              background: '#C9A84C',
+              color: '#0B0F19',
+              border: 'none',
+              borderRadius: '8px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              fontSize: '14px'
+            }}
+          >
+            Reload Site
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function App() {
+  // Use localStorage (not sessionStorage) so loading screen only shows ONCE ever
+  // sessionStorage resets on every tab/refresh which causes the black screen.
   const [isLoading, setIsLoading] = useState(() => {
-    return !sessionStorage.getItem('auto_elite_visited');
+    return !localStorage.getItem('auto_elite_visited');
   });
 
   const handleLoadingComplete = () => {
-    sessionStorage.setItem('auto_elite_visited', 'true');
+    localStorage.setItem('auto_elite_visited', 'true');
     setIsLoading(false);
   };
 
@@ -52,7 +110,7 @@ export default function App() {
   };
 
   return (
-    <>
+    <ErrorBoundary>
       <ScrollToTop />
       <MouseGlow />
 
@@ -91,6 +149,6 @@ export default function App() {
         <FloatingBookingWidget />
         <Footer />
       </div>
-    </>
+    </ErrorBoundary>
   );
 }

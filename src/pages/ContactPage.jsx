@@ -245,7 +245,7 @@ export default function ContactPage() {
                   <PhoneCall className="w-5 h-5 text-gold shrink-0 mt-0.5" />
                   <div>
                     <strong className="text-white block">24/7 Hotline & Dispatch</strong>
-                    <p className="text-slate-300">+94 11 255 3548 / +94 77 911 0000</p>
+                    <p className="text-slate-300">+94 11 255 3548 / 0703735156</p>
                   </div>
                 </div>
 

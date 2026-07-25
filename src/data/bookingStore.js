@@ -1,6 +1,7 @@
 // Centralized System Activity & Real-Time Telemetry Store for AUTO ELITE
-// Includes Persistent Global Cloud DB Sync via Vercel Serverless Proxy (/api/bookings) & JSONBlob Fallback
+// Cloud-first: cloud data ALWAYS wins over local to preserve admin status changes across all devices
 
+const CLOUD_URL = '/api/bookings'; // Vercel serverless proxy (server-side, no CORS issues)
 const DIRECT_CLOUD_URL = 'https://jsonblob.com/api/jsonBlob/019f98ae-6aec-7633-98f4-31a67e75c5db';
 
 const INITIAL_BOOKINGS = [
@@ -17,22 +18,34 @@ const INITIAL_NOTIFICATIONS = [
 ];
 
 export const getStoredBookings = () => {
-  const data = localStorage.getItem('auto_elite_bookings');
-  return data ? JSON.parse(data) : INITIAL_BOOKINGS;
+  try {
+    const data = localStorage.getItem('auto_elite_bookings');
+    return data ? JSON.parse(data) : INITIAL_BOOKINGS;
+  } catch {
+    return INITIAL_BOOKINGS;
+  }
 };
 
 export const getStoredNotifications = () => {
-  const data = localStorage.getItem('auto_elite_notifications');
-  return data ? JSON.parse(data) : INITIAL_NOTIFICATIONS;
+  try {
+    const data = localStorage.getItem('auto_elite_notifications');
+    return data ? JSON.parse(data) : INITIAL_NOTIFICATIONS;
+  } catch {
+    return INITIAL_NOTIFICATIONS;
+  }
 };
 
-// Async Persistent Cloud Sync function for Vercel deployment across all devices worldwide
+/**
+ * syncCloudBookings — fetches the authoritative cloud state.
+ * CLOUD DATA ALWAYS WINS: cloud bookings overwrite local ones to preserve admin status changes.
+ * Returns the merged booking list.
+ */
 export const syncCloudBookings = async () => {
   let cloudData = null;
 
-  // Try Vercel Serverless Function Proxy first
+  // Try Vercel Serverless proxy first (no CORS, no adblocker issues)
   try {
-    const res = await fetch('/api/bookings', {
+    const res = await fetch(CLOUD_URL, {
       method: 'GET',
       headers: { 'Accept': 'application/json' },
       cache: 'no-store'
@@ -40,10 +53,10 @@ export const syncCloudBookings = async () => {
     if (res.ok) {
       cloudData = await res.json();
     }
-  } catch (e) {}
+  } catch (_) {}
 
-  // Fallback to direct cloud endpoint if serverless proxy fails
-  if (!cloudData || !cloudData.bookings) {
+  // Fallback: direct cloud endpoint
+  if (!cloudData || !Array.isArray(cloudData.bookings)) {
     try {
       const res = await fetch(DIRECT_CLOUD_URL, {
         method: 'GET',
@@ -53,42 +66,38 @@ export const syncCloudBookings = async () => {
       if (res.ok) {
         cloudData = await res.json();
       }
-    } catch (e) {}
+    } catch (_) {}
   }
 
-  if (cloudData && cloudData.bookings && Array.isArray(cloudData.bookings) && cloudData.bookings.length > 0) {
+  if (cloudData && Array.isArray(cloudData.bookings) && cloudData.bookings.length > 0) {
     const localBookings = getStoredBookings();
-    
-    // Merge local & cloud bookings: Cloud bookings ALWAYS overwrite local bookings so Admin status changes persist!
+
+    // CLOUD WINS: build map from local first, then let cloud overwrite each entry by id
     const map = new Map();
-    localBookings.forEach(item => {
-      if (item && item.id) map.set(item.id, item);
-    });
-    cloudData.bookings.forEach(item => {
-      if (item && item.id) map.set(item.id, item);
-    });
+    localBookings.forEach(item => { if (item?.id) map.set(item.id, item); });
+    cloudData.bookings.forEach(item => { if (item?.id) map.set(item.id, item); }); // cloud overwrites local
 
-    const mergedBookings = Array.from(map.values());
-    localStorage.setItem('auto_elite_bookings', JSON.stringify(mergedBookings));
+    const merged = Array.from(map.values());
+    localStorage.setItem('auto_elite_bookings', JSON.stringify(merged));
 
-    if (cloudData.notifications && Array.isArray(cloudData.notifications)) {
+    if (Array.isArray(cloudData.notifications)) {
       const notifMap = new Map();
-      getStoredNotifications().forEach(n => {
-        if (n && n.id) notifMap.set(n.id, n);
-      });
-      cloudData.notifications.forEach(n => {
-        if (n && n.id) notifMap.set(n.id, n);
-      });
+      getStoredNotifications().forEach(n => { if (n?.id) notifMap.set(n.id, n); });
+      cloudData.notifications.forEach(n => { if (n?.id) notifMap.set(n.id, n); });
       localStorage.setItem('auto_elite_notifications', JSON.stringify(Array.from(notifMap.values())));
     }
 
     window.dispatchEvent(new Event('auto_elite_system_update'));
-    return mergedBookings;
+    return merged;
   }
 
   return getStoredBookings();
 };
 
+/**
+ * addSystemBooking — called when a customer submits a booking.
+ * Saves locally, pushes to cloud via serverless proxy AND direct endpoint.
+ */
 export const addSystemBooking = (newBooking) => {
   const currentBookings = getStoredBookings();
   const currentNotifs = getStoredNotifications();
@@ -99,7 +108,7 @@ export const addSystemBooking = (newBooking) => {
   const bookingEntry = {
     id: refId,
     customer: newBooking.customer || 'Guest Client',
-    phone: newBooking.phone || '+94 77 000 0000',
+    phone: newBooking.phone || '0703735156',
     vehicle: newBooking.vehicle || 'Luxury Vehicle',
     service: newBooking.service || 'General Service Program',
     date: newBooking.date ? `${newBooking.date} ${newBooking.time || '10:00 AM'}` : '2026-07-30 10:00 AM',
@@ -126,23 +135,21 @@ export const addSystemBooking = (newBooking) => {
   localStorage.setItem('auto_elite_bookings', JSON.stringify(updatedBookings));
   localStorage.setItem('auto_elite_notifications', JSON.stringify(updatedNotifs));
 
-  // Push to Vercel Serverless Function & Cloud Storage
-  try {
-    fetch('/api/bookings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ booking: bookingEntry, notification: notificationEntry })
-    }).catch(() => {
-      // Fallback direct fetch
-      fetch(DIRECT_CLOUD_URL, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bookings: updatedBookings, notifications: updatedNotifs })
-      }).catch(() => {});
-    });
-  } catch (e) {}
+  // Push to Vercel Serverless Function (guaranteed server-side, no CORS)
+  const payload = JSON.stringify({ booking: bookingEntry, notification: notificationEntry });
+  fetch(CLOUD_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: payload
+  }).catch(() => {
+    // Direct fallback
+    fetch(DIRECT_CLOUD_URL, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({ bookings: updatedBookings, notifications: updatedNotifs })
+    }).catch(() => {});
+  });
 
-  // Dispatch custom window event for real-time reactive sync across local components
   window.dispatchEvent(new CustomEvent('auto_elite_system_update', {
     detail: { booking: bookingEntry, notification: notificationEntry }
   }));
@@ -150,33 +157,29 @@ export const addSystemBooking = (newBooking) => {
   return bookingEntry;
 };
 
+/**
+ * updateCloudBookingsList — called when Admin changes a vehicle status.
+ * Immediately saves to cloud (both proxy + direct) so all devices see the update.
+ */
 export const updateCloudBookingsList = (updatedBookingsList) => {
   localStorage.setItem('auto_elite_bookings', JSON.stringify(updatedBookingsList));
   const currentNotifs = getStoredNotifications();
 
-  // Push to Vercel Serverless Function Proxy
-  try {
-    fetch('/api/bookings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ updatedBookings: updatedBookingsList })
-    }).catch(() => {});
-  } catch (e) {}
+  const fullPayload = JSON.stringify({ bookings: updatedBookingsList, notifications: currentNotifs });
 
-  // Also push directly to persistent cloud store to guarantee instant lock-in across all devices
-  try {
-    fetch(DIRECT_CLOUD_URL, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify({
-        bookings: updatedBookingsList,
-        notifications: currentNotifs
-      })
-    }).catch(() => {});
-  } catch (e) {}
+  // Push via Vercel serverless proxy
+  fetch(CLOUD_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ updatedBookings: updatedBookingsList })
+  }).catch(() => {});
+
+  // Also push directly to cloud storage for guaranteed persistence
+  fetch(DIRECT_CLOUD_URL, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    body: fullPayload
+  }).catch(() => {});
 
   window.dispatchEvent(new Event('auto_elite_system_update'));
 };
@@ -185,26 +188,4 @@ export const markNotificationsAsRead = () => {
   const notifs = getStoredNotifications().map(n => ({ ...n, read: true }));
   localStorage.setItem('auto_elite_notifications', JSON.stringify(notifs));
   window.dispatchEvent(new Event('auto_elite_system_update'));
-};
-
-// Simulated Real-Time Activity Feed for Live Demonstration
-export const triggerSimulatedActivity = () => {
-  const liveSamples = [
-    { customer: 'Nimal Jayasuriya', phone: '+94 77 555 1212', vehicle: 'Mercedes-AMG G63', service: 'Italian Bake Oven Custom Paint', price: 'LKR 450,000', rawPrice: 450000, location: 'Rajagiriya Hub' },
-    { customer: 'Chathura Bandara', phone: '+94 71 444 8888', vehicle: 'Lamborghini Huracan', service: 'Performance Brake Overhaul', price: 'LKR 85,000', rawPrice: 85000, location: 'Galle Station' },
-    { customer: 'Ruwan Fernando', phone: '+94 76 222 3333', vehicle: 'BMW M5 Competition', service: 'Bespoke Performance & Tuning', price: 'LKR 680,000', rawPrice: 680000, location: 'Kandy Hub' },
-  ];
-
-  const randomSample = liveSamples[Math.floor(Math.random() * liveSamples.length)];
-  return addSystemBooking({
-    customer: randomSample.customer,
-    phone: randomSample.phone,
-    vehicle: randomSample.vehicle,
-    service: randomSample.service,
-    price: randomSample.price,
-    rawPrice: randomSample.rawPrice,
-    mechanic: 'Elena Rostova',
-    notes: `Real-time dispatch from ${randomSample.location}`,
-    type: 'booking'
-  });
 };

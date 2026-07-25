@@ -235,9 +235,9 @@ export function ContactPage() {
               <h1 className="mt-3 text-4xl font-semibold sm:text-5xl">Start your next build.</h1>
               <p className="mt-4 text-lg text-slate-300">Consult with our team about a full transformation, performance-only upgrade, or custom interior design.</p>
               <div className="mt-8 space-y-4 text-slate-300">
-                <p>info@modidrive.com</p>
-                <p>+1 (310) 555-0148</p>
-                <p>1080 Beverly Blvd, Los Angeles, CA</p>
+                <p>sandunbandara978@gmail.com</p>
+                <p>0703735156</p>
+                <p>100 Apex Boulevard, Cinnamon Gardens, Colombo 07, Sri Lanka</p>
               </div>
             </div>
             <div className="rounded-[1.5rem] border border-white/10 bg-black/40 p-6">

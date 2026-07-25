@@ -6,7 +6,7 @@ export default function EmergencyPage() {
   const [locating, setLocating] = useState(false);
   const [gpsCoordinates, setGpsCoordinates] = useState('6.9061° N, 79.8708° E (Cinnamon Gardens, Colombo 07)');
   const [emergencyType, setEmergencyType] = useState('Low-Angle Flatbed Towing (Low Supercar)');
-  const [contactPhone, setContactPhone] = useState('+94 77 911 0000');
+  const [contactPhone, setContactPhone] = useState('0703735156');
   const [dispatched, setDispatched] = useState(false);
 
   const handleSimulateGPS = () => {

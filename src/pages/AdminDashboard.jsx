@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   TrendingUp, Users, Calendar, Wrench, Shield, DollarSign, Package, CheckCircle2, LogOut, Bell, X, AlertTriangle, Sparkles, CreditCard, Receipt, Printer, FileText
@@ -28,39 +28,45 @@ export default function AdminDashboard() {
 
   const navigate = useNavigate();
 
+  // Stable ref for known booking IDs — persists across re-renders without resetting
+  const knownIdsRef = useRef(null);
+
   // Listen for real-time customer booking events and persistent cloud DB sync
   useEffect(() => {
-    let knownIds = new Set(getStoredBookings().map(b => b.id));
+    // Initialise knownIds once from current local bookings
+    if (!knownIdsRef.current) {
+      knownIdsRef.current = new Set(getStoredBookings().map(b => b.id));
+    }
 
     const checkNewCloudBookings = async () => {
-      await syncCloudBookings();
-      const updatedList = getStoredBookings();
-      setAppointmentsList(updatedList);
+      const updatedList = await syncCloudBookings();
+      if (!updatedList) return;
+      setAppointmentsList([...updatedList]);
       setNotificationsList(getStoredNotifications());
 
-      // Detect if any new customer booking arrived from Vercel cloud DB
-      const newItems = updatedList.filter(b => !knownIds.has(b.id));
+      // Detect new bookings from any device/customer
+      const newItems = updatedList.filter(b => !knownIdsRef.current.has(b.id));
       if (newItems.length > 0) {
         const newest = newItems[0];
-        setToastMessage(`⚡ REAL-TIME CLOUD BOOKING ALERT: ${newest.customer} (${newest.phone}) reserved ${newest.service} [${newest.revenue}]`);
-        setTimeout(() => setToastMessage(null), 6000);
-        newItems.forEach(item => knownIds.add(item.id));
+        setToastMessage(`⚡ NEW BOOKING: ${newest.customer} (${newest.phone}) → ${newest.service} [${newest.revenue}]`);
+        setTimeout(() => setToastMessage(null), 8000);
+        newItems.forEach(item => knownIdsRef.current.add(item.id));
       }
     };
 
-    // Initial cloud fetch
+    // Initial cloud fetch immediately
     checkNewCloudBookings();
 
-    // Poll global cloud DB every 2.5 seconds for instant cross-device updates
-    const pollInterval = setInterval(checkNewCloudBookings, 2500);
+    // Poll cloud DB every 3 seconds for cross-device booking & status updates
+    const pollInterval = setInterval(checkNewCloudBookings, 3000);
 
     const handleSystemUpdate = (e) => {
-      setAppointmentsList(getStoredBookings());
+      setAppointmentsList([...getStoredBookings()]);
       setNotificationsList(getStoredNotifications());
 
       if (e?.detail?.booking) {
-        setToastMessage(`🚨 NEW BOOKING ALERT: ${e.detail.booking.customer} - ${e.detail.booking.service} (${e.detail.booking.revenue})`);
-        setTimeout(() => setToastMessage(null), 5000);
+        setToastMessage(`🚨 NEW BOOKING ALERT: ${e.detail.booking.customer} — ${e.detail.booking.service} (${e.detail.booking.revenue})`);
+        setTimeout(() => setToastMessage(null), 8000);
       }
     };
 
