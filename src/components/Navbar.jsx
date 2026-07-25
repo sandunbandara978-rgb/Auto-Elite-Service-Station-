@@ -193,11 +193,11 @@ export default function Navbar({ onReplayLoader }) {
 
             {/* Hotline CTA */}
             <a
-              href="tel:+94112553548"
+              href="tel:0703735156"
               className="flex items-center gap-2 px-4 py-2 rounded-full bg-gold-gradient text-navy-dark text-xs font-bold uppercase tracking-wider shadow-gold hover:shadow-gold-lg transition"
             >
               <PhoneCall className="w-3.5 h-3.5" />
-              <span>011 255 3548</span>
+              <span>0703735156</span>
             </a>
           </div>
 

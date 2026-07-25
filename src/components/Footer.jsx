@@ -21,10 +21,10 @@ export default function Footer() {
             </div>
           </div>
           <a
-            href="tel:+94112553548"
+            href="tel:0703735156"
             className="px-6 py-3.5 rounded-xl bg-gold-gradient text-navy-dark font-extrabold text-sm tracking-wider uppercase shadow-gold hover:shadow-gold-lg transition flex items-center gap-2 whitespace-nowrap"
           >
-            <span>CALL +94 11 255 3548</span>
+            <span>CALL 0703735156</span>
           </a>
         </div>
 

@@ -87,70 +87,102 @@ export default function HomePage() {
 
   // Calculate progress bar stage (1-4)
   const getStageIndex = (status) => {
-    if (status === 'Completed & Paid' || status === 'Completed') return 4;
-    if (status === 'In Progress') return 3;
+    if (status === 'Completed & Paid' || status === 'Completed' || status === 'Finish deal') return 4;
+    if (status === 'In Progress' || status === 'On the way') return 3;
     if (status === 'Pending Approval') return 2;
-    return 1; // Scheduled
+    return 1; // Scheduled / Preparing
   };
 
   const [isVideoPlaying, setIsVideoPlaying] = useState(true);
   const [isMuted, setIsMuted] = useState(true);
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
+  const [activeVideoId, setActiveVideoId] = useState('ZVNeNBMFNAk');
 
   return (
     <div className="space-y-24 pb-20">
       
-      {/* CINEMATIC FULL-SCREEN WORKSHOP VIDEO TOUR MODAL */}
-      {isVideoModalOpen && (
-        <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-black/95 backdrop-blur-xl">
-          <div className="relative max-w-4xl w-full glass-panel rounded-3xl border border-gold/40 shadow-2xl overflow-hidden bg-black space-y-4 p-4 sm:p-6">
-            <div className="flex items-center justify-between border-b border-white/10 pb-4">
-              <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full bg-red-600 animate-ping" />
-                <h3 className="text-lg font-bold font-display text-white">
-                  AUTO ELITE Grand Station 4K Ultra Tour
-                </h3>
+      {/* CINEMATIC VIDEO TOUR MODAL — YouTube Videos */}
+      {isVideoModalOpen && (() => {
+        const videos = [
+          { id: 'ZVNeNBMFNAk', label: '🎨 Ceramic Coating' },
+          { id: 'wXU1UAPBW5I', label: '⚙️ Engine Detail' },
+          { id: 'uYRnmIiK5eA', label: '🚿 Supercar Wash' },
+          { id: 'rDG7SRRGHDo', label: '🖌️ Paint Correction' },
+        ];
+        return (
+          <div
+            className="fixed inset-0 z-[999] flex items-center justify-center p-3 sm:p-6 bg-black/95 backdrop-blur-xl"
+            onClick={(e) => { if (e.target === e.currentTarget) setIsVideoModalOpen(false); }}
+          >
+            <div className="relative max-w-4xl w-full rounded-3xl border border-gold/40 shadow-2xl overflow-hidden bg-[#0a0c14] flex flex-col">
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 bg-black/60">
+                <div className="flex items-center gap-3">
+                  <span className="px-3 py-1 rounded-full bg-red-600 text-white font-mono text-[10px] font-bold uppercase tracking-widest animate-pulse">
+                    ● LIVE CINEMA
+                  </span>
+                  <h3 className="text-sm sm:text-base font-bold font-display text-white">
+                    AUTO ELITE — 4K Workshop Video Tour
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setIsVideoModalOpen(false)}
+                  className="p-2 rounded-full bg-white/10 hover:bg-red-600 text-slate-300 hover:text-white transition cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-              <button
-                onClick={() => setIsVideoModalOpen(false)}
-                className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white transition cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
 
-            <div className="relative rounded-2xl overflow-hidden bg-black aspect-video">
-              <video
-                autoPlay
-                controls
-                playsInline
-                className="w-full h-full object-cover"
-                poster="https://images.unsplash.com/photo-1614162692292-7ac56d7f7f1e?auto=format&fit=crop&w=1600&q=80"
-              >
-                <source
-                  src="https://assets.mixkit.co/videos/preview/mixkit-car-undergoing-a-thorough-cleaning-process-42935-large.mp4"
-                  type="video/mp4"
-                />
-                <source
-                  src="https://assets.mixkit.co/videos/preview/mixkit-mechanic-working-on-a-car-engine-42931-large.mp4"
-                  type="video/mp4"
-                />
-              </video>
-            </div>
+              {/* Video Category Tabs */}
+              <div className="flex gap-2 px-4 pt-3 pb-2 overflow-x-auto">
+                {videos.map((v) => (
+                  <button
+                    key={v.id}
+                    type="button"
+                    onClick={() => setActiveVideoId(v.id)}
+                    className={`shrink-0 px-4 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider transition cursor-pointer border ${
+                      activeVideoId === v.id
+                        ? 'bg-gold text-navy-dark border-gold shadow-gold'
+                        : 'bg-white/5 border-white/10 text-slate-300 hover:border-gold/50 hover:text-gold'
+                    }`}
+                  >
+                    {v.label}
+                  </button>
+                ))}
+              </div>
 
-            <div className="flex justify-between items-center text-xs text-slate-300 pt-2">
-              <p className="font-mono text-gold">100 Apex Boulevard, Cinnamon Gardens, Colombo 07</p>
-              <Link
-                to="/book"
-                onClick={() => setIsVideoModalOpen(false)}
-                className="px-5 py-2 rounded-xl bg-gold-gradient text-navy-dark font-extrabold text-xs uppercase tracking-wider shadow-gold"
-              >
-                Book Workshop Bay
-              </Link>
+              {/* YouTube iframe — key forces remount & autoplay on tab switch */}
+              <div className="relative bg-black aspect-video mx-4 mb-4 mt-2 rounded-2xl overflow-hidden shadow-2xl">
+                <iframe
+                  key={activeVideoId}
+                  src={`https://www.youtube.com/embed/${activeVideoId}?autoplay=1&rel=0&modestbranding=1&color=white`}
+                  title="AUTO ELITE Workshop Video"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                  style={{ border: 'none', width: '100%', height: '100%', display: 'block' }}
+                />
+              </div>
+
+              {/* Footer */}
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 px-5 pb-5 text-xs">
+                <div>
+                  <p className="font-mono text-gold font-bold text-sm">AUTO ELITE Grand Station</p>
+                  <p className="text-slate-400">100 Apex Blvd, Cinnamon Gardens, Colombo 07 · 0703735156</p>
+                </div>
+                <Link
+                  to="/book"
+                  onClick={() => setIsVideoModalOpen(false)}
+                  className="shrink-0 px-6 py-2.5 rounded-xl bg-gold-gradient text-navy-dark font-extrabold text-xs uppercase tracking-wider shadow-gold hover:scale-105 transition cursor-pointer"
+                >
+                  Book Service Bay →
+                </Link>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
+
+
       
       {/* HERO SECTION WITH REAL BACKGROUND VIDEO */}
       <section className="relative min-h-[90vh] flex items-center justify-center pt-12 pb-20 overflow-hidden">
@@ -366,12 +398,12 @@ export default function HomePage() {
                     Admin Status Tally
                   </span>
                   <span className={`px-4 py-2 rounded-xl text-xs font-extrabold uppercase border inline-block ${
-                    trackedBooking.status === 'Completed & Paid'
+                    trackedBooking.status === 'Completed & Paid' || trackedBooking.status === 'Finish deal'
                       ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 font-mono shadow-emerald-500/20'
-                      : trackedBooking.status === 'In Progress'
+                      : trackedBooking.status === 'In Progress' || trackedBooking.status === 'Preparing'
                       ? 'bg-gold/20 text-gold border-gold/40 shadow-gold'
-                      : trackedBooking.status === 'Completed'
-                      ? 'bg-blue-500/20 text-blue-400 border-blue-500/40'
+                      : trackedBooking.status === 'On the way' || trackedBooking.status === 'Completed'
+                      ? 'bg-blue-500/20 text-blue-400 border-blue-500/40 font-mono'
                       : 'bg-charcoal text-slate-200 border-white/20'
                   }`}>
                     {trackedBooking.status}

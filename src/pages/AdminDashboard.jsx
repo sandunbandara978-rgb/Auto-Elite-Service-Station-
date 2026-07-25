@@ -15,6 +15,7 @@ export default function AdminDashboard() {
   const [notificationsList, setNotificationsList] = useState(getStoredNotifications);
   const [notifDropdownOpen, setNotifDropdownOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
+  const [toastType, setToastType] = useState('booking'); // 'booking' | 'emergency'
   const [highlightedBookingId, setHighlightedBookingId] = useState(null);
   const [selectedNotifModal, setSelectedNotifModal] = useState(null);
 
@@ -38,18 +39,35 @@ export default function AdminDashboard() {
       knownIdsRef.current = new Set(getStoredBookings().map(b => b.id));
     }
 
+    const checkIsEmergency = (item) => {
+      if (!item) return false;
+      return (
+        item.type === 'emergency' ||
+        item.customer?.toUpperCase().includes('EMERGENCY') ||
+        item.service?.includes('🚨') ||
+        item.service?.toLowerCase().includes('emergency') ||
+        item.notes?.toLowerCase().includes('gps dispatch')
+      );
+    };
+
     const checkNewCloudBookings = async () => {
       const updatedList = await syncCloudBookings();
       if (!updatedList) return;
       setAppointmentsList([...updatedList]);
       setNotificationsList(getStoredNotifications());
 
-      // Detect new bookings from any device/customer
+      // Detect new bookings/emergencies from any device or customer
       const newItems = updatedList.filter(b => !knownIdsRef.current.has(b.id));
       if (newItems.length > 0) {
         const newest = newItems[0];
-        setToastMessage(`⚡ NEW BOOKING: ${newest.customer} (${newest.phone}) → ${newest.service} [${newest.revenue}]`);
-        setTimeout(() => setToastMessage(null), 8000);
+        const isEmergency = checkIsEmergency(newest);
+        setToastType(isEmergency ? 'emergency' : 'booking');
+        setToastMessage(
+          isEmergency
+            ? `🚨 EMERGENCY ALERT: ${newest.phone} — ${newest.service} | Location: ${newest.notes?.slice(0, 60) || 'Colombo 07 Station'}`
+            : `⚡ NEW BOOKING: ${newest.customer} (${newest.phone}) → ${newest.service} [${newest.revenue}]`
+        );
+        setTimeout(() => setToastMessage(null), 10000);
         newItems.forEach(item => knownIdsRef.current.add(item.id));
       }
     };
@@ -65,8 +83,15 @@ export default function AdminDashboard() {
       setNotificationsList(getStoredNotifications());
 
       if (e?.detail?.booking) {
-        setToastMessage(`🚨 NEW BOOKING ALERT: ${e.detail.booking.customer} — ${e.detail.booking.service} (${e.detail.booking.revenue})`);
-        setTimeout(() => setToastMessage(null), 8000);
+        const b = e.detail.booking;
+        const isEmergency = checkIsEmergency(b);
+        setToastType(isEmergency ? 'emergency' : 'booking');
+        setToastMessage(
+          isEmergency
+            ? `🚨 EMERGENCY DISPATCH REQUEST: ${b.phone} — ${b.service}`
+            : `⚡ NEW BOOKING ALERT: ${b.customer} — ${b.service} (${b.revenue})`
+        );
+        setTimeout(() => setToastMessage(null), 10000);
       }
     };
 
@@ -185,10 +210,22 @@ export default function AdminDashboard() {
       
       {/* Real-time Toast Alert Popup */}
       {toastMessage && (
-        <div className="fixed top-20 right-6 z-50 p-4 rounded-2xl bg-gold text-navy-dark font-bold text-xs shadow-gold-lg border border-white/40 flex items-center gap-3 animate-bounce">
-          <Sparkles className="w-5 h-5 shrink-0" />
-          <span>{toastMessage}</span>
-          <button onClick={() => setToastMessage(null)} className="ml-2 hover:opacity-75">
+        <div className={`fixed top-20 right-6 z-50 max-w-sm p-4 rounded-2xl font-bold text-xs shadow-2xl border flex items-start gap-3 ${
+          toastType === 'emergency'
+            ? 'bg-red-600 text-white border-red-400/60 shadow-red-600/40 animate-pulse'
+            : 'bg-gold text-navy-dark border-white/40 shadow-gold-lg animate-bounce'
+        }`}>
+          {toastType === 'emergency'
+            ? <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 animate-ping" />
+            : <Sparkles className="w-5 h-5 shrink-0" />
+          }
+          <div className="flex-1">
+            {toastType === 'emergency' && (
+              <p className="text-[10px] font-black uppercase tracking-widest mb-1 opacity-80">🚨 EMERGENCY ALERT</p>
+            )}
+            <span>{toastMessage}</span>
+          </div>
+          <button onClick={() => setToastMessage(null)} className="ml-1 hover:opacity-75 shrink-0">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -245,7 +282,7 @@ export default function AdminDashboard() {
                       </p>
                       <p className="text-xs text-slate-600 mt-1">
                         100 Apex Boulevard, Cinnamon Gardens, Colombo 07, Sri Lanka<br />
-                        Hotline: +94 11 255 3548 | VAT Reg: LK-992384-00
+                        Hotline: 0703735156 | VAT Reg: LK-992384-00
                       </p>
                     </div>
                     <div className="text-right">
@@ -474,47 +511,72 @@ export default function AdminDashboard() {
               <p className="text-[10px] text-slate-400 font-mono">Logged: {selectedNotifModal.notif.time}</p>
             </div>
 
-            {selectedNotifModal.booking && (
-              <div className="space-y-3 pt-2">
-                <h4 className="text-xs font-bold text-gold uppercase tracking-wider">Associated Reservation Record:</h4>
-                
-                <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-2 text-xs text-slate-300">
-                  <div className="flex justify-between items-center pb-2 border-b border-white/5">
-                    <span className="text-slate-400">Ref ID:</span>
-                    <span className="font-mono font-bold text-gold">{selectedNotifModal.booking.id}</span>
+            {selectedNotifModal.booking && (() => {
+              const isEmergencyNotif = selectedNotifModal.booking.type === 'emergency' || selectedNotifModal.booking.customer?.includes('EMERGENCY') || selectedNotifModal.booking.service?.includes('🚨');
+              return (
+                <div className="space-y-3 pt-2">
+                  <h4 className="text-xs font-bold text-gold uppercase tracking-wider">Associated Reservation Record:</h4>
+                  
+                  <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-2 text-xs text-slate-300">
+                    <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                      <span className="text-slate-400">Ref ID:</span>
+                      <span className="font-mono font-bold text-gold">{selectedNotifModal.booking.id}</span>
+                    </div>
+                    <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                      <span className="text-slate-400">Customer Name:</span>
+                      <span className="font-bold text-white">{selectedNotifModal.booking.customer}</span>
+                    </div>
+                    <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                      <span className="text-slate-400">Vehicle:</span>
+                      <span className="font-bold text-white">{selectedNotifModal.booking.vehicle}</span>
+                    </div>
+                    <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                      <span className="text-slate-400">Service Program:</span>
+                      <span className="font-bold text-gold">{selectedNotifModal.booking.service}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400">Service Fee:</span>
+                      <span className="font-mono font-bold text-white">{selectedNotifModal.booking.revenue}</span>
+                    </div>
                   </div>
-                  <div className="flex justify-between items-center pb-2 border-b border-white/5">
-                    <span className="text-slate-400">Customer Name:</span>
-                    <span className="font-bold text-white">{selectedNotifModal.booking.customer}</span>
-                  </div>
-                  <div className="flex justify-between items-center pb-2 border-b border-white/5">
-                    <span className="text-slate-400">Vehicle:</span>
-                    <span className="font-bold text-white">{selectedNotifModal.booking.vehicle}</span>
-                  </div>
-                  <div className="flex justify-between items-center pb-2 border-b border-white/5">
-                    <span className="text-slate-400">Service Program:</span>
-                    <span className="font-bold text-gold">{selectedNotifModal.booking.service}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-400">Service Fee:</span>
-                    <span className="font-mono font-bold text-white">{selectedNotifModal.booking.revenue}</span>
-                  </div>
-                </div>
 
-                <div className="pt-2 flex items-center justify-between gap-4">
-                  <button
-                    onClick={() => {
-                      const b = selectedNotifModal.booking;
-                      setSelectedNotifModal(null);
-                      setPaymentModalBooking(b);
-                    }}
-                    className="w-full py-3 rounded-xl bg-gold-gradient text-navy-dark font-extrabold text-xs uppercase tracking-wider shadow-gold"
-                  >
-                    💳 Collect Payment & Finish Deal
-                  </button>
+                  <div className="flex flex-col gap-2 w-full pt-2">
+                    {isEmergencyNotif && (
+                      <div className="flex items-center justify-between p-3 rounded-xl bg-red-600/20 border border-red-500/40 text-xs">
+                        <span className="text-red-300 font-bold uppercase tracking-wider">Emergency Status:</span>
+                        <select
+                          value={selectedNotifModal.booking.status || 'Preparing'}
+                          onChange={(e) => {
+                            const newSt = e.target.value;
+                            handleStatusChange(selectedNotifModal.booking.id, newSt);
+                            setSelectedNotifModal({
+                              ...selectedNotifModal,
+                              booking: { ...selectedNotifModal.booking, status: newSt }
+                            });
+                          }}
+                          className="px-3 py-1.5 rounded-xl text-xs font-bold bg-navy-dark text-gold border border-gold/40 outline-none cursor-pointer"
+                        >
+                          <option value="Preparing" className="bg-navy-dark text-gold font-bold">1. Preparing</option>
+                          <option value="On the way" className="bg-navy-dark text-blue-400 font-bold">2. On the way</option>
+                          <option value="Finish deal" className="bg-navy-dark text-emerald-400 font-mono font-bold">3. Finish deal</option>
+                        </select>
+                      </div>
+                    )}
+
+                    <button
+                      onClick={() => {
+                        const b = selectedNotifModal.booking;
+                        setSelectedNotifModal(null);
+                        setPaymentModalBooking(b);
+                      }}
+                      className="w-full py-3 rounded-xl bg-gold-gradient text-navy-dark font-extrabold text-xs uppercase tracking-wider shadow-gold cursor-pointer"
+                    >
+                      💳 Collect Payment & Finish Deal
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
         </div>
       )}
@@ -675,7 +737,8 @@ export default function AdminDashboard() {
             <tbody className="divide-y divide-white/5">
               {appointmentsList.map((app) => {
                 const isHighlighted = highlightedBookingId === app.id;
-                const isCompletedPaid = app.status === 'Completed & Paid';
+                const isCompletedPaid = app.status === 'Completed & Paid' || app.status === 'Finish deal';
+                const isEmergency = app.type === 'emergency' || app.customer?.includes('EMERGENCY') || app.service?.includes('🚨') || app.service?.includes('Emergency');
 
                 return (
                   <tr
@@ -709,24 +772,42 @@ export default function AdminDashboard() {
                     </td>
                     <td className="px-3 py-3 font-mono font-bold text-white whitespace-nowrap">{app.revenue}</td>
                     <td className="px-3 py-3">
-                      <select
-                        value={app.status}
-                        onChange={(e) => handleStatusChange(app.id, e.target.value)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold border outline-none cursor-pointer transition ${
-                          isCompletedPaid
-                            ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 font-mono'
-                            : app.status === 'In Progress'
-                            ? 'bg-gold/20 text-gold border-gold/40'
-                            : app.status === 'Completed'
-                            ? 'bg-blue-500/20 text-blue-400 border-blue-500/40'
-                            : 'bg-charcoal text-slate-300 border-white/20'
-                        }`}
-                      >
-                        <option value="Scheduled" className="bg-navy-dark text-white">Scheduled</option>
-                        <option value="In Progress" className="bg-navy-dark text-gold font-bold">In Progress</option>
-                        <option value="Completed" className="bg-navy-dark text-blue-400">Completed</option>
-                        <option value="Completed & Paid" className="bg-navy-dark text-emerald-400 font-mono font-bold">Completed & Paid</option>
-                      </select>
+                      {isEmergency ? (
+                        <select
+                          value={app.status || 'Preparing'}
+                          onChange={(e) => handleStatusChange(app.id, e.target.value)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold border outline-none cursor-pointer transition ${
+                            isCompletedPaid
+                              ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 font-mono'
+                              : app.status === 'On the way'
+                              ? 'bg-blue-500/20 text-blue-400 border-blue-500/40 font-mono'
+                              : 'bg-red-500/20 text-red-400 border-red-500/40 font-mono'
+                          }`}
+                        >
+                          <option value="Preparing" className="bg-navy-dark text-gold font-bold">1. Preparing</option>
+                          <option value="On the way" className="bg-navy-dark text-blue-400 font-bold">2. On the way</option>
+                          <option value="Finish deal" className="bg-navy-dark text-emerald-400 font-mono font-bold">3. Finish deal</option>
+                        </select>
+                      ) : (
+                        <select
+                          value={app.status}
+                          onChange={(e) => handleStatusChange(app.id, e.target.value)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold border outline-none cursor-pointer transition ${
+                            isCompletedPaid
+                              ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 font-mono'
+                              : app.status === 'In Progress'
+                              ? 'bg-gold/20 text-gold border-gold/40'
+                              : app.status === 'Completed'
+                              ? 'bg-blue-500/20 text-blue-400 border-blue-500/40'
+                              : 'bg-charcoal text-slate-300 border-white/20'
+                          }`}
+                        >
+                          <option value="Scheduled" className="bg-navy-dark text-white">Scheduled</option>
+                          <option value="In Progress" className="bg-navy-dark text-gold font-bold">In Progress</option>
+                          <option value="Completed" className="bg-navy-dark text-blue-400">Completed</option>
+                          <option value="Completed & Paid" className="bg-navy-dark text-emerald-400 font-mono font-bold">Completed & Paid</option>
+                        </select>
+                      )}
                     </td>
                     <td className="px-3 py-3 text-right">
                       {isCompletedPaid ? (

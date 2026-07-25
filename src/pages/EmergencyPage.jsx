@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { PhoneCall, Truck, MapPin, AlertTriangle, ShieldCheck, CheckCircle2, Sparkles, ChevronRight, Wrench } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { addSystemBooking } from '../data/bookingStore';
 
 export default function EmergencyPage() {
   const [locating, setLocating] = useState(false);
@@ -8,6 +9,36 @@ export default function EmergencyPage() {
   const [emergencyType, setEmergencyType] = useState('Low-Angle Flatbed Towing (Low Supercar)');
   const [contactPhone, setContactPhone] = useState('0703735156');
   const [dispatched, setDispatched] = useState(false);
+  const [hotlineAlerted, setHotlineAlerted] = useState(false);
+
+  // Fires a red emergency notification to the Admin Dashboard (cloud + local)
+  const triggerEmergencyNotification = (type, details) => {
+    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    addSystemBooking({
+      customer: `🚨 EMERGENCY — ${contactPhone}`,
+      phone: contactPhone,
+      vehicle: 'Emergency Breakdown',
+      service: type,
+      date: new Date().toISOString().slice(0, 10),
+      time: timeStr,
+      mechanic: 'On-Call Dispatch Team',
+      price: 'Emergency Rate',
+      rawPrice: 0,
+      notes: details,
+      type: 'emergency',
+      status: 'Preparing'
+    });
+  };
+
+  const handleHotlineClick = () => {
+    if (!hotlineAlerted) {
+      triggerEmergencyNotification(
+        '🚨 HOTLINE CALL — 24/7 Emergency',
+        `Customer dialed the emergency hotline at ${new Date().toLocaleTimeString()}. GPS: ${gpsCoordinates}`
+      );
+      setHotlineAlerted(true);
+    }
+  };
 
   const handleSimulateGPS = () => {
     setLocating(true);
@@ -19,6 +50,10 @@ export default function EmergencyPage() {
 
   const handleDispatch = (e) => {
     e.preventDefault();
+    triggerEmergencyNotification(
+      `🚨 ${emergencyType}`,
+      `GPS Dispatch Request: ${gpsCoordinates} | Phone: ${contactPhone} | Service: ${emergencyType}`
+    );
     setDispatched(true);
   };
 
@@ -62,14 +97,24 @@ export default function EmergencyPage() {
               Immediate low-angle flatbed towing, mobile jumpstarts, flat tire mounts, and supercar breakdown dispatch across Sri Lanka.
             </p>
 
+            {/* Hotline alert banner — appears after clicking the hotline */}
+            {hotlineAlerted && (
+              <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-red-600/20 border border-red-500/50 text-red-400 text-xs font-bold">
+                <span className="w-2 h-2 rounded-full bg-red-500 animate-ping inline-block shrink-0" />
+                Admin dispatched! Our team has been notified of your emergency call. Stay on the line.
+              </div>
+            )}
+
             {/* Action Buttons */}
             <div className="pt-4 flex flex-wrap items-center justify-center sm:justify-start gap-4">
+              {/* HOTLINE BUTTON — clicking fires red notification to Admin Dashboard */}
               <a
-                href="tel:+94112553548"
+                href="tel:0703735156"
+                onClick={handleHotlineClick}
                 className="px-8 py-4 rounded-xl bg-red-600 hover:bg-red-500 text-white font-extrabold text-sm tracking-wider uppercase shadow-red-500/30 shadow-xl hover:scale-105 transition-all flex items-center gap-3 cursor-pointer"
               >
                 <PhoneCall className="w-5 h-5 animate-bounce" />
-                <span>HOTLINE: +94 11 255 3548</span>
+                <span>HOTLINE: 0703735156</span>
               </a>
 
               <a
@@ -133,9 +178,13 @@ export default function EmergencyPage() {
               <p className="text-xs text-slate-300 max-w-md mx-auto">
                 Flatbed unit #04 is en route to <strong className="text-gold font-mono">{gpsCoordinates}</strong>. Estimated arrival in 14 minutes.
               </p>
+              <div className="text-xs text-red-400 font-semibold flex items-center justify-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-red-500 animate-ping inline-block" />
+                Admin Dashboard has been notified — our team is responding.
+              </div>
               <button
-                onClick={() => setDispatched(false)}
-                className="px-6 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs uppercase"
+                onClick={() => { setDispatched(false); setHotlineAlerted(false); }}
+                className="px-6 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs uppercase cursor-pointer"
               >
                 Submit New Request
               </button>
@@ -150,8 +199,8 @@ export default function EmergencyPage() {
                   className="w-full px-4 py-3 rounded-xl bg-charcoal border border-white/10 text-white focus:border-gold outline-none"
                 >
                   <option value="Low-Angle Flatbed Towing (Low Supercar)">Low-Angle Flatbed Towing (Low Supercar)</option>
-                  <option value="Mobile Battery Jumpstart & Tester">Mobile Battery Jumpstart & Tester</option>
-                  <option value="Flat Tire Mount & Spare Assembly">Flat Tire Mount & Spare Assembly</option>
+                  <option value="Mobile Battery Jumpstart & Tester">Mobile Battery Jumpstart &amp; Tester</option>
+                  <option value="Flat Tire Mount & Spare Assembly">Flat Tire Mount &amp; Spare Assembly</option>
                   <option value="Emergency Fuel Delivery (10 Litres)">Emergency Fuel Delivery (10 Litres)</option>
                   <option value="Vehicle Lockout Assistance">Vehicle Lockout Assistance</option>
                 </select>
@@ -163,7 +212,7 @@ export default function EmergencyPage() {
                   <button
                     type="button"
                     onClick={handleSimulateGPS}
-                    className="text-gold hover:underline font-semibold"
+                    className="text-gold hover:underline font-semibold cursor-pointer"
                   >
                     {locating ? 'Locating via Satellite...' : '⚡ Auto-Detect GPS Location'}
                   </button>
@@ -188,9 +237,9 @@ export default function EmergencyPage() {
 
               <button
                 type="submit"
-                className="w-full py-4 rounded-xl bg-red-600 hover:bg-red-500 text-white font-black text-xs uppercase tracking-wider shadow-red-500/30 shadow-lg cursor-pointer"
+                className="w-full py-4 rounded-xl bg-red-600 hover:bg-red-500 text-white font-black text-xs uppercase tracking-wider shadow-red-500/30 shadow-lg cursor-pointer transition-all hover:scale-[1.01]"
               >
-                REQUEST EMERGENCY DISPATCH NOW
+                🚨 REQUEST EMERGENCY DISPATCH NOW — NOTIFY ADMIN
               </button>
             </form>
           )}
