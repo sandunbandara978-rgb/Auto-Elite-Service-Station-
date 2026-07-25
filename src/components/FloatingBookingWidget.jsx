@@ -25,16 +25,8 @@ export default function FloatingBookingWidget() {
 
     let activeCustomer = getLoggedInCustomer();
     if (!activeCustomer) {
-      const guestUser = {
-        id: 'cust_' + Date.now(),
-        name: customerName.trim() || 'Express Customer',
-        phone: customerPhone.trim() || '+94 77 123 4567',
-        email: `${(customerName.trim() || 'customer').toLowerCase().replace(/\s+/g, '')}@autoelite.lk`,
-        vehicle: vehicle.trim() || 'Porsche 911 GT3 RS'
-      };
-      sessionStorage.setItem('auto_elite_current_customer', JSON.stringify(guestUser));
-      window.dispatchEvent(new CustomEvent('auto_elite_auth_change', { detail: guestUser }));
-      activeCustomer = guestUser;
+      setAuthModalOpen(true);
+      return;
     }
 
     const serviceObj = autoEliteServices.find(s => s.id === selectedService) || autoEliteServices[0];

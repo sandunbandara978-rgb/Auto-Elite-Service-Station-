@@ -60,19 +60,10 @@ export default function BookAppointmentPage() {
     
     let activeCustomer = getLoggedInCustomer();
     
-    // Auto-create active customer session using entered inputs if not already signed in
+    // MANDATORY ACCOUNT CHECK: User must have an account to book services
     if (!activeCustomer) {
-      const guestUser = {
-        id: 'cust_' + Date.now(),
-        name: customerName.trim() || 'Valued Customer',
-        phone: customerPhone.trim() || '+94 77 123 4567',
-        email: `${(customerName.trim() || 'customer').toLowerCase().replace(/\s+/g, '')}@autoelite.lk`,
-        vehicle: `${vehicleMake} ${vehicleModel}`
-      };
-      sessionStorage.setItem('auto_elite_current_customer', JSON.stringify(guestUser));
-      window.dispatchEvent(new CustomEvent('auto_elite_auth_change', { detail: guestUser }));
-      activeCustomer = guestUser;
-      setCustomer(guestUser);
+      setAuthModalOpen(true);
+      return;
     }
 
     // Dispatch exact customer input details to system store & admin console
@@ -101,11 +92,16 @@ export default function BookAppointmentPage() {
       <CustomerAuthModal
         isOpen={authModalOpen}
         onClose={() => setAuthModalOpen(false)}
-        message="Please create a user account or sign in to complete your vehicle service reservation."
+        message="🔒 User Account Required: Please sign in or create a free account to complete your vehicle reservation."
         onSuccess={(user) => {
           setCustomer(user);
           setCustomerName(user.name);
           setCustomerPhone(user.phone);
+          setAuthModalOpen(false);
+          // Auto-confirm reservation right after successful sign-in / registration
+          setTimeout(() => {
+            handleFinish();
+          }, 300);
         }}
       />
 
