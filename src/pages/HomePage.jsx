@@ -6,7 +6,7 @@ import {
   Award, ArrowUpRight, Cpu, CheckCircle2, PhoneCall, Sparkles, Search, Car, User, Check, AlertCircle, RefreshCw
 } from 'lucide-react';
 import { autoEliteServices, autoEliteTestimonials, autoEliteMechanics } from '../data/autoEliteData';
-import { getStoredBookings } from '../data/bookingStore';
+import { getStoredBookings, syncCloudBookings } from '../data/bookingStore';
 
 export default function HomePage() {
   const [selectedCalcService, setSelectedCalcService] = useState(autoEliteServices[0].id);
@@ -19,23 +19,36 @@ export default function HomePage() {
     return list.find(b => b.id === 'AE-9481') || list[0];
   });
 
-  // Listen for real-time admin status updates
+  // Listen for real-time admin status updates and poll persistent cloud DB
   useEffect(() => {
-    const handleSystemUpdate = () => {
-      const list = getStoredBookings();
-      setActiveBookings(list);
-      
-      // Update currently tracked booking if its status was updated by admin
-      if (searchRefId) {
-        const found = list.find(b => b.id.toLowerCase() === searchRefId.trim().toLowerCase());
-        if (found) {
-          setTrackedBooking(found);
+    const syncStatus = async () => {
+      const list = await syncCloudBookings();
+      if (list && Array.isArray(list)) {
+        setActiveBookings(list);
+        if (searchRefId) {
+          const found = list.find(b => b.id.toLowerCase() === searchRefId.trim().toLowerCase() || b.phone.includes(searchRefId));
+          if (found) {
+            setTrackedBooking(found);
+          }
         }
       }
     };
 
+    // Initial sync
+    syncStatus();
+
+    // Poll cloud DB every 2 seconds for live status updates from Admin Dashboard
+    const pollInterval = setInterval(syncStatus, 2000);
+
+    const handleSystemUpdate = () => {
+      syncStatus();
+    };
+
     window.addEventListener('auto_elite_system_update', handleSystemUpdate);
-    return () => window.removeEventListener('auto_elite_system_update', handleSystemUpdate);
+    return () => {
+      clearInterval(pollInterval);
+      window.removeEventListener('auto_elite_system_update', handleSystemUpdate);
+    };
   }, [searchRefId]);
 
   const handleSearchSubmit = (e) => {
