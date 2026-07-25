@@ -3,7 +3,7 @@ import { autoEliteServices, autoEliteMechanics, vehicleModelsByBrand } from '../
 import { addSystemBooking } from '../data/bookingStore';
 import { getLoggedInCustomer } from '../data/customerAuth';
 import CustomerAuthModal from '../components/CustomerAuthModal';
-import { CheckCircle2, ChevronRight, ChevronLeft, ShieldCheck, Star, Sparkles, Wrench } from 'lucide-react';
+import { CheckCircle2, ChevronRight, ChevronLeft, ShieldCheck, Star, Sparkles, Wrench, Search } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 
 export default function BookAppointmentPage() {
@@ -22,6 +22,8 @@ export default function BookAppointmentPage() {
   const [selectedMechanicId, setSelectedMechanicId] = useState(autoEliteMechanics[0].id);
   const [notes, setNotes] = useState('');
   const [confirmed, setConfirmed] = useState(false);
+  const [confirmedRefId, setConfirmedRefId] = useState(null);
+  const [refCopied, setRefCopied] = useState(false);
 
   const navigate = useNavigate();
 
@@ -67,7 +69,7 @@ export default function BookAppointmentPage() {
     }
 
     // Dispatch exact customer input details to system store & admin console
-    addSystemBooking({
+    const bookingEntry = addSystemBooking({
       customer: customerName.trim() || activeCustomer.name,
       phone: customerPhone.trim() || activeCustomer.phone,
       vehicle: `${vehicleMake} ${vehicleModel}` + (licensePlate ? ` [${licensePlate}]` : ''),
@@ -81,10 +83,16 @@ export default function BookAppointmentPage() {
       type: 'booking'
     });
 
+    // Save the returned Reference ID so we can show it to the customer
+    if (bookingEntry && bookingEntry.id) {
+      setConfirmedRefId(bookingEntry.id);
+    }
+
     setConfirmed(true);
+    // Give the customer time to read their Ref ID before redirecting
     setTimeout(() => {
       navigate('/customer-dashboard');
-    }, 2500);
+    }, 7000);
   };
 
   return (
@@ -221,14 +229,49 @@ export default function BookAppointmentPage() {
         <div className="glass-panel rounded-3xl border border-gold/30 p-6 sm:p-10 bg-navy-dark/90 shadow-2xl space-y-8">
           
           {confirmed ? (
-            <div className="py-12 flex flex-col items-center text-center space-y-4">
+            <div className="py-10 flex flex-col items-center text-center space-y-6">
               <div className="w-20 h-20 rounded-full bg-gold/20 flex items-center justify-center text-gold border border-gold/40">
                 <CheckCircle2 className="w-12 h-12" />
               </div>
-              <h2 className="text-3xl font-bold font-display text-white">RESERVATION TRANSMITTED!</h2>
-              <p className="text-xs text-slate-300 max-w-md">
-                Booking for <strong className="text-white font-bold">{customerName}</strong> has been logged in the Admin Console. Redirecting to your Customer Dashboard...
-              </p>
+              <div className="space-y-2">
+                <h2 className="text-3xl font-bold font-display text-white">RESERVATION TRANSMITTED!</h2>
+                <p className="text-xs text-slate-300 max-w-md">
+                  Booking for <strong className="text-white font-bold">{customerName}</strong> has been logged in the Admin Console.
+                </p>
+              </div>
+
+              {/* REFERENCE ID DISPLAY — Customer must save this to track their vehicle */}
+              {confirmedRefId && (
+                <div className="w-full max-w-sm p-5 rounded-2xl bg-gold/10 border border-gold/40 space-y-3">
+                  <p className="text-[11px] uppercase tracking-widest text-gold font-bold">Your Tracking Reference ID</p>
+                  <div className="flex items-center justify-center gap-3">
+                    <span className="text-3xl font-black font-mono text-white tracking-widest">{confirmedRefId}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(confirmedRefId).catch(() => {});
+                        setRefCopied(true);
+                        setTimeout(() => setRefCopied(false), 2000);
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-gold text-navy-dark text-xs font-bold uppercase tracking-wider hover:bg-gold-hover transition cursor-pointer"
+                    >
+                      {refCopied ? '✓ Copied!' : 'Copy'}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    Use this ID in the <strong className="text-gold">Live Vehicle Situation Tracker</strong> on the Home Page to monitor your vehicle's real-time service status.
+                  </p>
+                  <Link
+                    to="/"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/10 border border-white/20 text-white text-xs font-bold uppercase tracking-wider hover:border-gold hover:text-gold transition"
+                  >
+                    <Search className="w-4 h-4" />
+                    Go Track My Vehicle
+                  </Link>
+                </div>
+              )}
+
+              <p className="text-[11px] text-slate-500">Redirecting to your Customer Dashboard in a moment...</p>
             </div>
           ) : (
             <>

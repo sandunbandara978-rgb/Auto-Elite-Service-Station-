@@ -25,36 +25,50 @@ export default function HomePage() {
       const list = await syncCloudBookings();
       if (list && Array.isArray(list)) {
         setActiveBookings(list);
-        if (searchRefId) {
-          const found = list.find(b => b.id.toLowerCase() === searchRefId.trim().toLowerCase() || b.phone.includes(searchRefId));
-          if (found) {
-            setTrackedBooking(found);
-          }
+        // Auto-refresh the tracked booking whenever the list updates (picks up admin status changes)
+        if (searchRefId && searchRefId.trim()) {
+          const q = searchRefId.trim().toLowerCase();
+          const found = list.find(b =>
+            b.id.toLowerCase() === q ||
+            b.id.toLowerCase().replace('-', '') === q.replace('-', '') ||
+            (b.phone && b.phone.replace(/\s+/g, '').includes(searchRefId.replace(/\s+/g, '')))
+          );
+          if (found) setTrackedBooking(found);
         }
       }
     };
 
-    // Initial sync
+    // Initial sync immediately on mount
     syncStatus();
 
-    // Poll cloud DB every 2 seconds for live status updates from Admin Dashboard
-    const pollInterval = setInterval(syncStatus, 2000);
+    // Poll cloud every 2.5 seconds for live status updates from Admin Dashboard
+    const pollInterval = setInterval(syncStatus, 2500);
 
-    const handleSystemUpdate = () => {
-      syncStatus();
-    };
-
+    const handleSystemUpdate = () => syncStatus();
     window.addEventListener('auto_elite_system_update', handleSystemUpdate);
+
     return () => {
       clearInterval(pollInterval);
       window.removeEventListener('auto_elite_system_update', handleSystemUpdate);
     };
   }, [searchRefId]);
 
-  const handleSearchSubmit = (e) => {
-    e.preventDefault();
-    const list = getStoredBookings();
-    const found = list.find(b => b.id.toLowerCase() === searchRefId.trim().toLowerCase() || b.phone.includes(searchRefId));
+  const handleSearchSubmit = async (e) => {
+    if (e) e.preventDefault();
+    const q = searchRefId.trim().toLowerCase();
+    if (!q) return;
+
+    // Search cloud first (most up-to-date), then fall back to local
+    const cloudList = await syncCloudBookings();
+    const list = (cloudList && cloudList.length > 0) ? cloudList : getStoredBookings();
+    setActiveBookings(list);
+
+    const found = list.find(b =>
+      b.id.toLowerCase() === q ||
+      b.id.toLowerCase().replace('-', '') === q.replace('-', '') ||
+      (b.phone && b.phone.replace(/\s+/g, '').includes(searchRefId.trim()))
+    );
+
     if (found) {
       setTrackedBooking(found);
     } else {
@@ -66,9 +80,7 @@ export default function HomePage() {
     setSearchRefId(refId);
     const list = getStoredBookings();
     const found = list.find(b => b.id === refId);
-    if (found) {
-      setTrackedBooking(found);
-    }
+    if (found) setTrackedBooking(found);
   };
 
   const calcService = autoEliteServices.find(s => s.id === selectedCalcService) || autoEliteServices[0];
