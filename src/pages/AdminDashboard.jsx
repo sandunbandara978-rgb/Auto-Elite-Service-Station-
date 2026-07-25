@@ -28,21 +28,31 @@ export default function AdminDashboard() {
 
   const navigate = useNavigate();
 
-  // Listen for real-time customer booking events and cloud serverless sync
+  // Listen for real-time customer booking events and persistent cloud DB sync
   useEffect(() => {
-    // Initial cloud fetch from Vercel API
-    syncCloudBookings().then(() => {
-      setAppointmentsList(getStoredBookings());
-      setNotificationsList(getStoredNotifications());
-    });
+    let knownIds = new Set(getStoredBookings().map(b => b.id));
 
-    // Poll Vercel cloud API every 3 seconds for live cross-device updates
-    const pollInterval = setInterval(() => {
-      syncCloudBookings().then(() => {
-        setAppointmentsList(getStoredBookings());
-        setNotificationsList(getStoredNotifications());
-      });
-    }, 3000);
+    const checkNewCloudBookings = async () => {
+      await syncCloudBookings();
+      const updatedList = getStoredBookings();
+      setAppointmentsList(updatedList);
+      setNotificationsList(getStoredNotifications());
+
+      // Detect if any new customer booking arrived from Vercel cloud DB
+      const newItems = updatedList.filter(b => !knownIds.has(b.id));
+      if (newItems.length > 0) {
+        const newest = newItems[0];
+        setToastMessage(`⚡ REAL-TIME CLOUD BOOKING ALERT: ${newest.customer} (${newest.phone}) reserved ${newest.service} [${newest.revenue}]`);
+        setTimeout(() => setToastMessage(null), 6000);
+        newItems.forEach(item => knownIds.add(item.id));
+      }
+    };
+
+    // Initial cloud fetch
+    checkNewCloudBookings();
+
+    // Poll global cloud DB every 2.5 seconds for instant cross-device updates
+    const pollInterval = setInterval(checkNewCloudBookings, 2500);
 
     const handleSystemUpdate = (e) => {
       setAppointmentsList(getStoredBookings());
