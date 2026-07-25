@@ -64,7 +64,7 @@ export default function InspectionPage() {
             {/* Action Buttons */}
             <div className="pt-4 flex flex-wrap items-center justify-center sm:justify-start gap-4">
               <Link
-                to="/contact"
+                to="/book"
                 className="px-8 py-4 rounded-xl bg-gold-gradient text-navy-dark font-extrabold text-sm tracking-wider uppercase shadow-gold-lg hover:scale-105 transition-all flex items-center gap-3 cursor-pointer"
               >
                 <FileCheck className="w-5 h-5" />

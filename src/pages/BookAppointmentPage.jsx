@@ -32,6 +32,16 @@ export default function BookAppointmentPage() {
       setCustomerName(active.name);
       setCustomerPhone(active.phone);
     }
+
+    // Auto-scroll directly to Step 1: Owner & Vehicle Specifications wizard section
+    const timer = setTimeout(() => {
+      const wizardElement = document.getElementById('booking-wizard');
+      if (wizardElement) {
+        wizardElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 150);
+
+    return () => clearTimeout(timer);
   }, []);
 
   const handleMakeChange = (newMake) => {

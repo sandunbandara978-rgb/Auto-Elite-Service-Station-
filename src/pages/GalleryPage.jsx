@@ -61,7 +61,7 @@ export default function GalleryPage() {
               </a>
 
               <Link
-                to="/services"
+                to="/book"
                 className="px-8 py-4 rounded-xl glass-panel border border-white/20 text-white hover:border-gold font-bold text-sm tracking-wider uppercase hover:bg-white/5 transition flex items-center gap-2"
               >
                 <Wrench className="w-4 h-4 text-gold" />
