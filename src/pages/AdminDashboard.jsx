@@ -4,7 +4,7 @@ import {
   TrendingUp, Users, Calendar, Wrench, Shield, DollarSign, Package, CheckCircle2, LogOut, Bell, X, AlertTriangle, Sparkles, CreditCard, Receipt, Printer, FileText
 } from 'lucide-react';
 import AdminLoginPage from './AdminLoginPage';
-import { getStoredBookings, getStoredNotifications, markNotificationsAsRead } from '../data/bookingStore';
+import { getStoredBookings, getStoredNotifications, markNotificationsAsRead, syncCloudBookings, updateCloudBookingsList } from '../data/bookingStore';
 
 export default function AdminDashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
@@ -28,8 +28,22 @@ export default function AdminDashboard() {
 
   const navigate = useNavigate();
 
-  // Listen for real-time customer booking events
+  // Listen for real-time customer booking events and cloud serverless sync
   useEffect(() => {
+    // Initial cloud fetch from Vercel API
+    syncCloudBookings().then(() => {
+      setAppointmentsList(getStoredBookings());
+      setNotificationsList(getStoredNotifications());
+    });
+
+    // Poll Vercel cloud API every 3 seconds for live cross-device updates
+    const pollInterval = setInterval(() => {
+      syncCloudBookings().then(() => {
+        setAppointmentsList(getStoredBookings());
+        setNotificationsList(getStoredNotifications());
+      });
+    }, 3000);
+
     const handleSystemUpdate = (e) => {
       setAppointmentsList(getStoredBookings());
       setNotificationsList(getStoredNotifications());
@@ -41,7 +55,10 @@ export default function AdminDashboard() {
     };
 
     window.addEventListener('auto_elite_system_update', handleSystemUpdate);
-    return () => window.removeEventListener('auto_elite_system_update', handleSystemUpdate);
+    return () => {
+      clearInterval(pollInterval);
+      window.removeEventListener('auto_elite_system_update', handleSystemUpdate);
+    };
   }, []);
 
   const [archivedRevenue, setArchivedRevenue] = useState(() => {
@@ -56,7 +73,7 @@ export default function AdminDashboard() {
   const handleStatusChange = (id, newStatus) => {
     const updated = appointmentsList.map(a => a.id === id ? { ...a, status: newStatus } : a);
     setAppointmentsList(updated);
-    localStorage.setItem('auto_elite_bookings', JSON.stringify(updated));
+    updateCloudBookingsList(updated);
   };
 
   const handleNotificationClick = (notif) => {
@@ -94,7 +111,7 @@ export default function AdminDashboard() {
     );
 
     setAppointmentsList(updated);
-    localStorage.setItem('auto_elite_bookings', JSON.stringify(updated));
+    updateCloudBookingsList(updated);
 
     setToastMessage(`💰 DEAL FINISHED & SETTLED! ${paymentModalBooking.revenue} added to Gross Paid Revenue!`);
     setTimeout(() => setToastMessage(null), 6000);
@@ -114,7 +131,7 @@ export default function AdminDashboard() {
 
     const updated = appointmentsList.filter(a => a.id !== app.id);
     setAppointmentsList(updated);
-    localStorage.setItem('auto_elite_bookings', JSON.stringify(updated));
+    updateCloudBookingsList(updated);
 
     setToastMessage(`🗑️ Deal line ${app.id} deleted from queue. Revenue remains in Gross Revenue!`);
     setTimeout(() => setToastMessage(null), 5000);

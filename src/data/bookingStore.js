@@ -1,4 +1,5 @@
 // Centralized System Activity & Real-Time Telemetry Store for AUTO ELITE
+// Includes Vercel Cloud Live Sync for Cross-Device Persistence
 
 const INITIAL_BOOKINGS = [
   { id: 'AE-9481', customer: 'Dinesh Perera', phone: '+94 77 123 4567', vehicle: 'Porsche 911 GT3 RS', service: '9H Ceramic & Tune', date: '2026-07-28 10:00 AM', mechanic: 'Julian Sterling', status: 'In Progress', revenue: 'LKR 245,000', rawRevenue: 245000, notes: 'Please inspect front carbon splitter', timeAgo: '10 Mins Ago' },
@@ -21,6 +22,46 @@ export const getStoredBookings = () => {
 export const getStoredNotifications = () => {
   const data = localStorage.getItem('auto_elite_notifications');
   return data ? JSON.parse(data) : INITIAL_NOTIFICATIONS;
+};
+
+// Async Cloud Sync function for Vercel deployment
+export const syncCloudBookings = async () => {
+  try {
+    const res = await fetch('/api/bookings', { cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.bookings && Array.isArray(data.bookings)) {
+        const localBookings = getStoredBookings();
+        
+        // Merge cloud & local bookings, preserving unique IDs
+        const map = new Map();
+        [...data.bookings, ...localBookings].forEach(item => {
+          if (!map.has(item.id)) {
+            map.set(item.id, item);
+          }
+        });
+
+        const mergedBookings = Array.from(map.values());
+        localStorage.setItem('auto_elite_bookings', JSON.stringify(mergedBookings));
+
+        if (data.notifications && Array.isArray(data.notifications)) {
+          const notifMap = new Map();
+          [...data.notifications, ...getStoredNotifications()].forEach(n => {
+            if (!notifMap.has(n.id)) {
+              notifMap.set(n.id, n);
+            }
+          });
+          localStorage.setItem('auto_elite_notifications', JSON.stringify(Array.from(notifMap.values())));
+        }
+
+        window.dispatchEvent(new Event('auto_elite_system_update'));
+        return mergedBookings;
+      }
+    }
+  } catch (e) {
+    // Fallback to local storage if offline or local preview mode
+  }
+  return getStoredBookings();
 };
 
 export const addSystemBooking = (newBooking) => {
@@ -60,12 +101,33 @@ export const addSystemBooking = (newBooking) => {
   localStorage.setItem('auto_elite_bookings', JSON.stringify(updatedBookings));
   localStorage.setItem('auto_elite_notifications', JSON.stringify(updatedNotifs));
 
-  // Dispatch custom window event for real-time reactive sync across components
+  // Push to Vercel cloud serverless API for cross-device synchronization
+  try {
+    fetch('/api/bookings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ booking: bookingEntry, notification: notificationEntry })
+    }).catch(() => {});
+  } catch (e) {}
+
+  // Dispatch custom window event for real-time reactive sync across local components
   window.dispatchEvent(new CustomEvent('auto_elite_system_update', {
     detail: { booking: bookingEntry, notification: notificationEntry }
   }));
 
   return bookingEntry;
+};
+
+export const updateCloudBookingsList = (updatedBookingsList) => {
+  localStorage.setItem('auto_elite_bookings', JSON.stringify(updatedBookingsList));
+  try {
+    fetch('/api/bookings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ updatedBookings: updatedBookingsList })
+    }).catch(() => {});
+  } catch (e) {}
+  window.dispatchEvent(new Event('auto_elite_system_update'));
 };
 
 export const markNotificationsAsRead = () => {
