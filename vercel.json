@@ -1,6 +1,6 @@
 {
   "rewrites": [
     { "source": "/api/bookings", "destination": "/api/bookings.js" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/(.*)", "destination": "/frontend/dist/index.html" }
   ]
 }
